@@ -19,11 +19,59 @@
 
 #ifndef __ZMQ_MUTEX_HPP_INCLUDED__
 #define __ZMQ_MUTEX_HPP_INCLUDED__
-
+#include "pin.H"
+#include "instlib.H"
+#include "portability.H"
 #include "platform.hpp"
 #include "err.hpp"
 
 //  Mutex class encapsulates OS mutex in a platform-independent way.
+
+#ifdef PIN_H
+
+namespace zmq
+{
+
+    class mutex_t
+    {
+    public:
+        inline mutex_t ()
+        {
+	  PIN_MutexInit(&mutex);
+        }
+
+        inline ~mutex_t ()
+        {
+          PIN_MutexFini(&mutex);
+        }
+
+        inline void lock ()
+        {
+          PIN_MutexLock(&mutex);
+        }
+
+        inline bool try_lock ()
+        {
+          return ((bool) PIN_MutexTryLock(&mutex));
+        }
+
+        inline void unlock ()
+        {
+          PIN_MutexUnlock(&mutex);
+        }
+
+    private:
+        PIN_MUTEX mutex;
+
+        //  Disable copy construction and assignment.
+        mutex_t (const mutex_t&);
+        void operator = (const mutex_t&);
+    };
+
+}
+
+
+#else  //PIN definition
 
 #ifdef ZMQ_HAVE_WINDOWS
 
@@ -126,8 +174,8 @@ namespace zmq
 
 }
 
-#endif
-
+#endif  //not ZMQ_HAVE_WINDOWS
+#endif // PIN_H
 
 namespace zmq
 {
@@ -155,3 +203,4 @@ namespace zmq
 }
 
 #endif
+

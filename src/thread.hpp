@@ -20,12 +20,15 @@
 #ifndef __ZMQ_THREAD_HPP_INCLUDED__
 #define __ZMQ_THREAD_HPP_INCLUDED__
 
+#include "pin.H"
+#include "instlib.H"
+#include "portability.H"
 #include "platform.hpp"
 
 #ifdef ZMQ_HAVE_WINDOWS
-#include "windows.hpp"
+    #include "windows.hpp"
 #else
-#include <pthread.h>
+    #include <pthread.h>
 #endif
 
 namespace zmq
@@ -61,11 +64,15 @@ namespace zmq
         void *arg;
         
     private:
-
-#ifdef ZMQ_HAVE_WINDOWS
-        HANDLE descriptor;
+#ifdef PIN_H
+      PIN_THREAD_UID pThreadUid;
+      THREADID descriptor;
 #else
-        pthread_t descriptor;
+    #ifdef ZMQ_HAVE_WINDOWS
+            HANDLE descriptor;
+    #else
+            pthread_t descriptor;
+    #endif
 #endif
 
         thread_t (const thread_t&);

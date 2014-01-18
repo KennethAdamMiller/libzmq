@@ -25,28 +25,41 @@
 
 extern "C"
 {
-#if defined _WIN32_WCE
-	static DWORD thread_routine (LPVOID arg_)
+#if defined PIN_H
+  static VOID thread_routine (VOID *arg)
 #else
-    static unsigned int __stdcall thread_routine (void *arg_)
+  #if defined _WIN32_WCE
+      static DWORD thread_routine (LPVOID arg_)
+  #else
+      static unsigned int __stdcall thread_routine (void *arg_)
+  #endif
 #endif
-    {
-        zmq::thread_t *self = (zmq::thread_t*) arg_;
-        self->tfn (self->arg);
-        return 0;
-    }
+  {
+    zmq::thread_t *self = (zmq::thread_t*) arg_;
+    self->tfn (self->arg);
+#ifndef PIN_H
+    return 0;
+#else
+    return;
+#endif
+  }
 }
 
 void zmq::thread_t::start (thread_fn *tfn_, void *arg_)
 {
     tfn = tfn_;
     arg =arg_;
-#if defined _WIN32_WCE
-    descriptor = (HANDLE) CreateThread (NULL, 0,
-        &::thread_routine, this, 0 , NULL);
+#if defined PIN_H
+    descriptor = PIN_SpawnInternalThread
+      (&::thread_routine, this, 0, &pThreadUid);sdfja
 #else
-    descriptor = (HANDLE) _beginthreadex (NULL, 0,
-        &::thread_routine, this, 0 , NULL);
+    #if defined _WIN32_WCE
+        descriptor = (HANDLE) CreateThread (NULL, 0,
+            &::thread_routine, this, 0 , NULL);
+    #else
+        descriptor = (HANDLE) _beginthreadex (NULL, 0,
+            &::thread_routine, this, 0 , NULL);
+    #endif
 #endif
     win_assert (descriptor != NULL);    
 }
@@ -59,27 +72,35 @@ void zmq::thread_t::stop ()
     win_assert (rc2 != 0);
 }
 
-#else
+#else //Not windows
 
 #include <signal.h>
 
 extern "C"
 {
+#ifndef PIN_H
     static void *thread_routine (void *arg_)
+#else
+    static VOID thread_routine (VOID *arg_)
+#endif
     {
 #if !defined ZMQ_HAVE_OPENVMS && !defined ZMQ_HAVE_ANDROID
         //  Following code will guarantee more predictable latencies as it'll
         //  disallow any signal handling in the I/O thread.
-        sigset_t signal_set;
-        int rc = sigfillset (&signal_set);
-        errno_assert (rc == 0);
-        rc = pthread_sigmask (SIG_BLOCK, &signal_set, NULL);
-        posix_assert (rc);
+      sigset_t signal_set;
+      int rc = sigfillset (&signal_set);
+      errno_assert (rc == 0);
+      rc = pthread_sigmask (SIG_BLOCK, &signal_set, NULL);
+      posix_assert (rc);
 #endif
 
-        zmq::thread_t *self = (zmq::thread_t*) arg_;   
-        self->tfn (self->arg);
-        return NULL;
+      zmq::thread_t *self = (zmq::thread_t*) arg_;   
+      self->tfn (self->arg);
+#ifndef PIN_H
+      return NULL;
+#else
+      return;
+#endif
     }
 }
 
@@ -87,17 +108,27 @@ void zmq::thread_t::start (thread_fn *tfn_, void *arg_)
 {
     tfn = tfn_;
     arg =arg_;
+#if defined PIN_H
+    descriptor = PIN_SpawnInternalThread(&::thread_routine,
+					 this, 0, &pThreadUid);
+#else
     int rc = pthread_create (&descriptor, NULL, thread_routine, this);
     posix_assert (rc);
+#endif
 }
 
 void zmq::thread_t::stop ()
 {
+#if defined PIN_H
+  PIN_WaitForThreadTermination
+    (pThreadUid, PIN_INFINITE_TIMEOUT, NULL);
+#else
     int rc = pthread_join (descriptor, NULL);
     posix_assert (rc);
+#endif
 }
 
-#endif
+#endif //of non-windows version
 
 
 
